@@ -48,6 +48,181 @@ struct Object {
   char *trapDescription; // NULL se não é do tipo 'armadilha' (trap).
 };
 
+struct Cell cells[MAX_CELLS];
+struct Object objects[MAX_OBJECTS];
+
+char *promptString(char *prompt);
+void initializeCells();
+void initializeObjects();
+void moveMonster(struct Monster *monster);
+
+int main() {
+  printf("Welcome to Aventure Game v0.0.1.\n");
+  printf("The objective is to defeat the monster and steal the treasure. Good luck!\n");
+  initializeCells();
+  initializeObjects();
+  char *name = promptString("What is your name?");
+  struct Cell playerCell = cells[DEFAULT_CELL];
+  int foundObjects[MAX_OBJECTS];
+  struct Player player = {name, DEFAULT_ENERGY, &playerCell, NONE, 0};
+  struct Monster monster = {MONSTER_ENERGY, &cells[MONSTER_INITIAL_CELL]};
+
+  int gameOver = 0;
+  int monsterDead = 0;
+  printf("> %s\n", playerCell.description);
+  while (!gameOver) {
+    if (monsterDead && player.carriesTreasure) {
+      if (player.cell->isDefault) {
+        printf("You escaped!\n");
+        break;
+      }
+
+      printf("!!! You are now ready to leave to complete your mission.\n");
+    }
+
+    if (!monsterDead) moveMonster(&monster);
+    printf("You have %d energy.\n", player.energy);
+
+    int inputInvalid;
+    do {
+      inputInvalid = 0;
+      char *possibleMoves = malloc(100);
+      if (player.cell->north != -1) {
+        strcat(possibleMoves, "(n)orth,");
+      }
+      if (player.cell->south != -1) {
+        strcat(possibleMoves, "(s)outh,");
+      }
+      if (player.cell->east != -1) {
+        strcat(possibleMoves, "(e)ast,");
+      }
+      if (player.cell->west != -1) {
+        strcat(possibleMoves, "(w)est,");
+      }
+      if (player.cell->up != -1) {
+        strcat(possibleMoves, "(u)p,");
+      }
+      if (player.cell->down != -1) {
+        strcat(possibleMoves, "(d)own,");
+      }
+      size_t size = strlen(possibleMoves);
+      possibleMoves[size - 1] = '\0';
+
+      char *buffer = malloc(100);
+      sprintf(buffer, "Where do you want to go? (%s)", possibleMoves);
+      char *input = promptString(buffer);
+
+      if (strcmp(input, "n") == 0 && player.cell->north != -1) {
+        player.cell = &cells[player.cell->north];
+      } else if (strcmp(input, "s") == 0 && player.cell->south != -1) {
+        player.cell = &cells[player.cell->south];
+      } else if (strcmp(input, "e") == 0 && player.cell->east != -1) {
+        player.cell = &cells[player.cell->east];
+      } else if (strcmp(input, "w") == 0 && player.cell->west != -1) {
+        player.cell = &cells[player.cell->west];
+      } else if (strcmp(input, "u") == 0 && player.cell->up != -1) {
+        player.cell = &cells[player.cell->up];
+      } else if (strcmp(input, "d") == 0 && player.cell->down != -1) {
+        player.cell = &cells[player.cell->down];
+      } else {
+        printf("Invalid input. Try again.\n");
+        inputInvalid = 1;
+      }
+    } while (inputInvalid);
+
+    if (player.cell->object != NONE) {
+      struct Object found = objects[player.cell->object];
+      if (found.type == OBJECT_T_WEAPON && !foundObjects[found.id]) {
+        char buffer[256];
+        sprintf(buffer, "You found a %s! It deals %d energy. Do you want to pick it up? (y/n)",
+                found.name, found.energy);
+        char *input = promptString(buffer);
+        if (strcmp(input, "y") == 0) {
+          foundObjects[found.id] = 1;
+          printf("You now own this %s!\n", found.name);
+          player.carriedObject = found.id;
+        }
+      } else if (found.type == OBJECT_T_TRAP) {
+        printf("%s\n", found.trapDescription);
+        player.energy -= found.energy;
+        if (player.energy <= 0) {
+          printf("You died!\n");
+          break;
+        }
+      } else if (found.type == OBJECT_T_HEALTH && !foundObjects[found.id]) {
+        printf("You found a %s! Your energy increased by %d.\n", found.name, found.energy);
+        player.energy += found.energy;
+        foundObjects[found.id] = 1;
+      }
+    } else if (player.cell->hasTreasure) {
+      printf("You found the treasure!\n");
+      if (monsterDead) {
+        printf("You can escape now.\n");
+      } else {
+        printf("Defeat the monster and escape.\n");
+      }
+
+      player.carriesTreasure = 1;
+    }
+
+    printf("> %s\n", player.cell->description);
+
+    if (player.cell == monster.cell) {
+      printf("You met the monster! It's time to fight!\n");
+      while (!monsterDead) {
+        char *input = promptString("What to do? ((w)eak attack,(s)trong attack,(r)un away)");
+        if (strcmp(input, "w") == 0 || strcmp(input, "s") == 0) {
+          int maxDealtEnergy = player.carriedObject ? objects[player.carriedObject].energy : 10;
+          int failAttack = (rand() % 2);
+          int dealtEnergy = (strcmp(input, "w") == 0)
+              ? rand() % (maxDealtEnergy - 10)
+              : rand() % (maxDealtEnergy + 200);
+
+          // Apenas falhar se for "strong attack".
+          if (failAttack && strcmp(input, "s") == 0) {
+            printf("You missed.\n");
+          } else {
+            monster.energy -= dealtEnergy;
+            printf("You dealt %d energy to the monster! The monster now has %d energy.\n", dealtEnergy, monster.energy);
+          }
+          if (monster.energy <= 0) {
+            monsterDead = 1;
+            monster.cell = NULL;
+          } else {
+            failAttack = (rand() % 2);
+            if (failAttack) {
+              printf("The monster missed.\n");
+              continue;
+            }
+
+            dealtEnergy = rand() % 50;
+            player.energy -= dealtEnergy;
+            printf("The monster dealt %d energy to you! You now have %d energy.\n", dealtEnergy, player.energy);
+            if (player.energy <= 0) {
+              gameOver = 1;
+              printf("You died!\n");
+              break;
+            }
+          }
+        } else {
+          printf("You ran away!\n");
+          break;
+        }
+      }
+
+      if (monsterDead) {
+        printf("You killed the monster! Congratulations!\n");
+      } else {
+        printf("The monster's energy is now %d.\n", monster.energy);
+      }
+    }
+  }
+
+  printf("Game over!\n");
+
+  return 0;
+}
+
 char *promptString(char *prompt) {
   char *buff = malloc(strlen(prompt) + 1);
   strcpy(buff, prompt);
@@ -59,7 +234,7 @@ char *promptString(char *prompt) {
   return name;
 }
 
-void initializeCells(struct Cell *cells) {
+void initializeCells() {
   // Cell 0
   cells[0].north = NONE;
   cells[0].south = NONE;
@@ -173,7 +348,7 @@ void initializeCells(struct Cell *cells) {
   strcpy(cells[9].description, "This seems to be the monster's storage room.");
 }
 
-void initializeObjects(struct Object *objects) {
+void initializeObjects() {
   // Object 0
   objects[0].type = OBJECT_T_WEAPON;
   objects[0].name = "Ancient Sword";
@@ -200,7 +375,7 @@ void initializeObjects(struct Object *objects) {
   objects[3].id = 3;
 }
 
-void moveMonster(struct Monster *monster, struct Cell *cells) {
+void moveMonster(struct Monster *monster) {
   int invalid = 1;
   while (invalid) {
     int direction = rand() % 6;
@@ -212,7 +387,7 @@ void moveMonster(struct Monster *monster, struct Cell *cells) {
            direction == 5 && monster->cell->down == -1) {
       direction = rand() % 6;
     }
-    struct Cell previousCell = *monster->cell;
+
     switch (direction) {
       case 0:
         monster->cell = &cells[monster->cell->north];
@@ -232,6 +407,8 @@ void moveMonster(struct Monster *monster, struct Cell *cells) {
       case 5:
         monster->cell = &cells[monster->cell->down];
         break;
+      default:
+        break;
     }
     if (monster->cell->object == 1) {
       invalid = 1;
@@ -240,175 +417,4 @@ void moveMonster(struct Monster *monster, struct Cell *cells) {
     }
   }
 
-}
-
-int main() {
-  printf("Welcome to Aventure Game v0.0.1.\n");
-  printf("The objective is to defeat the monster and steal the treasure. Good luck!\n");
-  struct Cell cells[MAX_CELLS];
-  struct Object objects[MAX_OBJECTS];
-  initializeCells(cells);
-  initializeObjects(objects);
-  char *name = promptString("What is your name?");
-  struct Cell playerCell = cells[DEFAULT_CELL];
-  int foundObjects[MAX_OBJECTS];
-  struct Player player = {name, DEFAULT_ENERGY, &playerCell, NONE, 0};
-  struct Monster monster = {MONSTER_ENERGY, &cells[MONSTER_INITIAL_CELL]};
-
-  int gameOver = 0;
-  int monsterDead = 0;
-  printf("> %s\n", playerCell.description);
-  while (!gameOver) {
-    if (monsterDead && player.carriesTreasure) {
-      if (player.cell->isDefault) {
-        gameOver = 1;
-        printf("You escaped!\n");
-        break;
-      }
-
-      printf("!!! You are now ready to leave to complete your mission.\n");
-    }
-
-    if (!monsterDead) moveMonster(&monster, cells);
-    printf("You have %d energy.\n", player.energy);
-
-    int inputInvalid = 0;
-    do {
-      inputInvalid = 0;
-      char *possibleMoves = malloc(100);
-      if (player.cell->north != -1) {
-        strcat(possibleMoves, "(n)orth,");
-      }
-      if (player.cell->south != -1) {
-        strcat(possibleMoves, "(s)outh,");
-      }
-      if (player.cell->east != -1) {
-        strcat(possibleMoves, "(e)ast,");
-      }
-      if (player.cell->west != -1) {
-        strcat(possibleMoves, "(w)est,");
-      }
-      if (player.cell->up != -1) {
-        strcat(possibleMoves, "(u)p,");
-      }
-      if (player.cell->down != -1) {
-        strcat(possibleMoves, "(d)own,");
-      }
-      size_t size = strlen(possibleMoves);
-      possibleMoves[size - 1] = '\0';
-
-      char *buffer = malloc(100);
-      sprintf(buffer, "Where do you want to go? (%s)", possibleMoves);
-      char *input = promptString(buffer);
-
-      if (strcmp(input, "n") == 0 && player.cell->north != -1) {
-        player.cell = &cells[player.cell->north];
-      } else if (strcmp(input, "s") == 0 && player.cell->south != -1) {
-        player.cell = &cells[player.cell->south];
-      } else if (strcmp(input, "e") == 0 && player.cell->east != -1) {
-        player.cell = &cells[player.cell->east];
-      } else if (strcmp(input, "w") == 0 && player.cell->west != -1) {
-        player.cell = &cells[player.cell->west];
-      } else if (strcmp(input, "u") == 0 && player.cell->up != -1) {
-        player.cell = &cells[player.cell->up];
-      } else if (strcmp(input, "d") == 0 && player.cell->down != -1) {
-        player.cell = &cells[player.cell->down];
-      } else {
-        printf("Invalid input. Try again.\n");
-        inputInvalid = 1;
-      }
-    } while (inputInvalid);
-
-    if (player.cell->object != NONE) {
-      struct Object found = objects[player.cell->object];
-      if (found.type == OBJECT_T_WEAPON && !foundObjects[found.id]) {
-        char buffer[256];
-        sprintf(buffer, "You found a %s! It deals %d energy. Do you want to pick it up? (y/n)",
-                found.name, found.energy);
-        char *input = promptString(buffer);
-        if (strcmp(input, "y") == 0) {
-          foundObjects[found.id] = 1;
-          printf("You now own this %s!\n", found.name);
-          player.carriedObject = found.id;
-        }
-      } else if (found.type == OBJECT_T_TRAP) {
-        printf("%s\n", found.trapDescription);
-        player.energy -= found.energy;
-        if (player.energy <= 0) {
-          gameOver = 1;
-          printf("You died!\n");
-          break;
-        }
-      } else if (found.type == OBJECT_T_HEALTH && !foundObjects[found.id]) {
-        printf("You found a %s! Your energy increased by %d.\n", found.name, found.energy);
-        player.energy += found.energy;
-        foundObjects[found.id] = 1;
-      }
-    } else if (player.cell->hasTreasure) {
-      printf("You found the treasure!\n");
-      if (monsterDead) {
-        printf("You can escape now.\n");
-      } else {
-        printf("Defeat the monster and escape.\n");
-      }
-
-      player.carriesTreasure = 1;
-    }
-
-    printf("> %s\n", player.cell->description);
-
-    if (player.cell == monster.cell) {
-      printf("You met the monster! It's time to fight!\n");
-      while (!monsterDead) {
-        char *input = promptString("What to do? ((w)eak attack,(s)trong attack,(r)un away)");
-        if (strcmp(input, "w") == 0 || strcmp(input, "s") == 0) {
-          int maxDealtEnergy = player.carriedObject ? objects[player.carriedObject].energy : 10;
-          int failAttack = (rand() % 2);
-          int dealtEnergy = (strcmp(input, "w") == 0)
-              ? rand() % (maxDealtEnergy - 10)
-              : rand() % (maxDealtEnergy + 200);
-
-          // Apenas falhar se for "strong attack".
-          if (failAttack && strcmp(input, "s") == 0) {
-            printf("You missed.\n");
-          } else {
-            monster.energy -= dealtEnergy;
-            printf("You dealt %d energy to the monster! The monster now has %d energy.\n", dealtEnergy, monster.energy);
-          }
-          if (monster.energy <= 0) {
-            monsterDead = 1;
-            monster.cell = NULL;
-          } else {
-            failAttack = (rand() % 2);
-            if (failAttack) {
-              printf("The monster missed.\n");
-              continue;
-            }
-
-            dealtEnergy = rand() % 50;
-            player.energy -= dealtEnergy;
-            printf("The monster dealt %d energy to you! You now have %d energy.\n", dealtEnergy, player.energy);
-            if (player.energy <= 0) {
-              gameOver = 1;
-              printf("You died!\n");
-              break;
-            }
-          }
-        } else {
-          printf("You ran away!\n");
-          break;
-        }
-      }
-
-      if (monsterDead) {
-        printf("You killed the monster! Congratulations!\n");
-      } else {
-        printf("The monster's energy is now %d.\n", monster.energy);
-      }
-    }
-  }
-
-  printf("Game over!\n");
-
-  return 0;
 }
