@@ -217,7 +217,7 @@ void *player_thread(void *ptr) {
           int maxDealtEnergy = player->carriedObject ? objects[player->carriedObject].energy : 10;
           int failAttack = (rand() % 2);
           int dealtEnergy = (strcmp(input, "w") == 0)
-                            ? rand() % (maxDealtEnergy - 10)
+                            ? rand() % (maxDealtEnergy - 5)
                             : rand() % (maxDealtEnergy + 200);
 
           // Apenas falhar se for "strong attack".
@@ -273,7 +273,7 @@ void* monster_thread(void* ptr) {
   struct Cell *cells = game->cells;
   struct Monster *monster = game->monster;
 
-  while (!*game->monsterDead) {
+  while (!*game->monsterDead && game->player->energy > 0) {
     pthread_mutex_lock(&lock);
     sleep(5);
     moveMonster(monster, cells);
