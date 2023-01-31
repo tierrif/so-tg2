@@ -1,13 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
-#define DEFAULT_ENERGY 5000
+#define DEFAULT_ENERGY 50
 #define DEFAULT_CELL 0
-#define AMOUNT_OF_CELLS 49
-#define AMOUNT_OF_OBJECTS 10
-#define MAP_WIDTH (int) floor(sqrt(AMOUNT_OF_CELLS))
+#define NONE (-1)
+#define MONSTER_INITIAL_CELL 6
+#define MONSTER_ENERGY 2000
+
+#define OBJECT_T_HEALTH 0
+#define OBJECT_T_WEAPON 1
+#define OBJECT_T_TRAP 2
+#define MAX_CELLS 5000
+#define MAX_OBJECTS 500
 
 struct Cell {
   int north,
@@ -16,200 +21,285 @@ struct Cell {
       west,
       up,
       down,
-      hasObject,
+      object,
       hasTreasure,
-      id;
-  char* description;
+      isDefault;
+  char *description;
 };
 
 struct Player {
-  char* name;
+  char *name;
   int energy;
-  struct Cell* cell;
+  struct Cell *cell;
   int carriedObject; // -1 se não tem, senão código do objeto.
   int carriesTreasure;
 };
 
 struct Monster {
   int energy;
-  struct Cell* cell;
+  struct Cell *cell;
 };
 
 struct Object {
-  char* name;
+  char *name;
   int energy;
+  int type;
   int id;
+  char *trapDescription; // NULL se não é do tipo 'armadilha' (trap).
 };
 
-char* promptString(char* prompt) {
-  char* buff = malloc(strlen(prompt) + 1);
+char *promptString(char *prompt) {
+  char *buff = malloc(strlen(prompt) + 1);
   strcpy(buff, prompt);
   strcat(buff, " ");
 
-  char* name = malloc(100);
-  printf(buff);
+  char *name = malloc(100);
+  printf("%s", buff);
   scanf("%s", name);
   return name;
 }
 
-void initializeCells(struct Cell** map, struct Cell* cells) {
-  int ids = 0;
-  for (int i = 0; i < MAP_WIDTH; i++) {
-    for (int j = 0; j < MAP_WIDTH; j++) {
-      struct Cell* cell = &map[i][j];
-      cell->hasObject = 0;
-      cell->hasTreasure = 0;
-      cell->id = ids++;
-      cell->description = malloc(100);
-      sprintf(cell->description, "Cell %d", cell->id);
+void initializeCells(struct Cell *cells) {
+  // Cell 0
+  cells[0].north = NONE;
+  cells[0].south = NONE;
+  cells[0].west = NONE;
+  cells[0].east = 1;
+  cells[0].up = NONE;
+  cells[0].down = NONE;
+  cells[0].object = NONE;
+  cells[0].description = (char *) malloc(100);
+  cells[0].isDefault = 1;
+  sprintf(cells[0].description, "You're in front of a big castle. You hear strange noises coming from inside.");
+
+  // Cell 1
+  cells[1].north = 3;
+  cells[1].south = 4;
+  cells[1].west = 0;
+  cells[1].east = 2;
+  cells[1].up = NONE;
+  cells[1].down = 5;
+  cells[1].object = NONE;
+  cells[1].description = (char *) malloc(100);
+  strcpy(cells[1].description, "You're at the castle's hall. You see a lot of doors and stairs that seem to go down.");
+
+  // Cell 2
+  cells[2].north = NONE;
+  cells[2].south = NONE;
+  cells[2].west = 1;
+  cells[2].east = NONE;
+  cells[2].up = 6;
+  cells[2].down = NONE;
+  cells[2].object = NONE;
+  cells[2].description = (char *) malloc(100);
+  strcpy(cells[2].description, "You see very long stairs that seem to go up.");
+
+  // Cell 3
+  cells[3].north = NONE;
+  cells[3].south = 1;
+  cells[3].west = NONE;
+  cells[3].east = NONE;
+  cells[3].up = NONE;
+  cells[3].down = NONE;
+  cells[3].object = 0;
+  cells[3].description = (char *) malloc(100);
+  strcpy(cells[3].description, "You're in a small room with a chest in the center.");
+
+  // Cell 4
+  cells[4].north = 1;
+  cells[4].south = NONE;
+  cells[4].west = NONE;
+  cells[4].east = NONE;
+  cells[4].up = NONE;
+  cells[4].down = 7;
+  cells[4].object = NONE;
+  cells[4].description = (char *) malloc(100);
+  strcpy(cells[4].description, "A very, very dark set of stairs goes down, deep underground. I wouldn't go there.");
+
+  // Cell 5
+  cells[5].north = NONE;
+  cells[5].south = NONE;
+  cells[5].west = NONE;
+  cells[5].east = 8;
+  cells[5].up = 1;
+  cells[5].down = NONE;
+  cells[5].object = NONE;
+  cells[5].description = (char *) malloc(100);
+  strcpy(cells[5].description, "There's a very fancy door right in front of you.");
+
+  // Cell 6
+  cells[6].north = 9;
+  cells[6].south = NONE;
+  cells[6].west = NONE;
+  cells[6].east = NONE;
+  cells[6].up = NONE;
+  cells[6].down = 2;
+  cells[6].object = 3;
+  cells[6].description = (char *) malloc(100);
+  strcpy(cells[6].description, "You're at what seems to be the throne room.");
+
+  // Cell 7
+  cells[7].north = NONE;
+  cells[7].south = NONE;
+  cells[7].west = NONE;
+  cells[7].east = NONE;
+  cells[7].up = 4;
+  cells[7].down = NONE;
+  cells[7].object = 1;
+  cells[7].description = (char *) malloc(100);
+  strcpy(cells[7].description, "Spikes hit you. It was a trap. You were warned.");
+
+  // Cell 8
+  cells[8].north = NONE;
+  cells[8].south = NONE;
+  cells[8].west = 5;
+  cells[8].east = NONE;
+  cells[8].up = NONE;
+  cells[8].down = NONE;
+  cells[8].object = NONE;
+  cells[8].hasTreasure = 1;
+  cells[8].description = (char *) malloc(100);
+  strcpy(cells[8].description, "You find a very good-looking treasure chest.");
+
+  // Cell 9
+  cells[9].north = NONE;
+  cells[9].south = 6;
+  cells[9].west = NONE;
+  cells[9].east = NONE;
+  cells[9].up = NONE;
+  cells[9].down = NONE;
+  cells[9].object = 2;
+  cells[9].description = (char *) malloc(100);
+  strcpy(cells[9].description, "This seems to be the monster's storage room.");
+}
+
+void initializeObjects(struct Object *objects) {
+  // Object 0
+  objects[0].type = OBJECT_T_WEAPON;
+  objects[0].name = "Ancient Sword";
+  objects[0].energy = 40;
+  objects[0].id = 0;
+
+  // Object 1
+  objects[1].type = OBJECT_T_TRAP;
+  objects[1].name = "Spikes";
+  objects[1].trapDescription = "You got spiked to death.";
+  objects[1].energy = 999999;
+  objects[1].id = 1;
+
+  // Object 2
+  objects[2].type = OBJECT_T_WEAPON;
+  objects[2].name = "Honjo Masamune";
+  objects[2].energy = 150;
+  objects[2].id = 2;
+
+  // Object 3
+  objects[3].type = OBJECT_T_HEALTH;
+  objects[3].name = "Health Potion";
+  objects[3].energy = 450;
+  objects[3].id = 3;
+}
+
+void moveMonster(struct Monster *monster, struct Cell *cells) {
+  int invalid = 1;
+  while (invalid) {
+    int direction = rand() % 6;
+    while (direction == 0 && monster->cell->north == -1 ||
+           direction == 1 && monster->cell->south == -1 ||
+           direction == 2 && monster->cell->east == -1 ||
+           direction == 3 && monster->cell->west == -1 ||
+           direction == 4 && monster->cell->up == -1 ||
+           direction == 5 && monster->cell->down == -1) {
+      direction = rand() % 6;
+    }
+    struct Cell previousCell = *monster->cell;
+    switch (direction) {
+      case 0:
+        monster->cell = &cells[monster->cell->north];
+        break;
+      case 1:
+        monster->cell = &cells[monster->cell->south];
+        break;
+      case 2:
+        monster->cell = &cells[monster->cell->east];
+        break;
+      case 3:
+        monster->cell = &cells[monster->cell->west];
+        break;
+      case 4:
+        monster->cell = &cells[monster->cell->up];
+        break;
+      case 5:
+        monster->cell = &cells[monster->cell->down];
+        break;
+    }
+    if (monster->cell->object == 1) {
+      invalid = 1;
+    } else {
+      invalid = 0;
     }
   }
 
-  ids = 0;
-  for (int i = 0; i < MAP_WIDTH; i++) {
-    for (int j = 0; j < MAP_WIDTH; j++) {
-      struct Cell* cell = &map[i][j];
-
-      if (i == 0) {
-        cell->north = -1;
-      } else {
-        cell->north = map[i - 1][j].id;
-      }
-
-      if (i == MAP_WIDTH - 1) {
-        cell->south = -1;
-      } else {
-        cell->south = map[i + 1][j].id;
-      }
-
-      if (j == 0) {
-        cell->west = -1;
-      } else {
-        cell->west = map[i][j - 1].id;
-      }
-
-      if (j == MAP_WIDTH - 1) {
-        cell->east = -1;
-      } else {
-        cell->east = map[i][j + 1].id;
-      }
-
-      cell->up = -1;
-      cell->down = -1;
-
-      cells[ids++] = map[i][j];
-    }
-  }
-
-  int treasureCell = rand() % AMOUNT_OF_CELLS;
-  cells[treasureCell].hasTreasure = 1;
-}
-
-struct Object* initializeObjects(struct Cell* cells) {
-  struct Object* objects = malloc(sizeof(struct Object) * AMOUNT_OF_OBJECTS);
-  for (int i = 0; i < AMOUNT_OF_OBJECTS; i++) {
-    objects[i].name = malloc(100);
-    sprintf(objects[i].name, "Object %d", i);
-    objects[i].energy = rand() % 100;
-    objects[i].id = i;
-
-    int index = rand() % AMOUNT_OF_CELLS;
-    while (cells[index].hasObject || cells[index].hasTreasure) {
-      index = rand() % AMOUNT_OF_CELLS;
-    }
-    cells[index].hasObject = 1;
-  }
-
-  return objects;
-}
-
-void moveMonster(struct Monster* monster, struct Cell* cells) {
-  int direction = rand() % 6;
-  while (direction == 0 && monster->cell->north == -1 ||
-         direction == 1 && monster->cell->south == -1 ||
-         direction == 2 && monster->cell->east == -1 ||
-         direction == 3 && monster->cell->west == -1 ||
-         direction == 4 && monster->cell->up == -1 ||
-         direction == 5 && monster->cell->down == -1) {
-    direction = rand() % 6;
-  }
-  switch (direction) {
-    case 0:
-      monster->cell = &cells[monster->cell->north];
-      break;
-    case 1:
-      monster->cell = &cells[monster->cell->south];
-      break;
-    case 2:
-      monster->cell = &cells[monster->cell->east];
-      break;
-    case 3:
-      monster->cell = &cells[monster->cell->west];
-      break;
-    case 4:
-      monster->cell = &cells[monster->cell->up];
-      break;
-    case 5:
-      monster->cell = &cells[monster->cell->down];
-      break;
-  }
-}
-
-struct Object randomizeObject(struct Object* objects, int* foundObjects) {
-  int index = rand() % AMOUNT_OF_OBJECTS;
-  struct Object obj = objects[index];
-
-  foundObjects[index] = 1;
-
-  return obj;
 }
 
 int main() {
-  struct Cell** map = (struct Cell**) malloc(sizeof(struct Cell*) * MAP_WIDTH);
-  for (int i = 0; i < MAP_WIDTH; i++) {
-    map[i] = (struct Cell*) malloc(sizeof(struct Cell) * MAP_WIDTH);
-  }
-  struct Cell cells[AMOUNT_OF_CELLS];
-  initializeCells(map, cells);
-  char* name = promptString("What is your name?");
+  printf("Welcome to Aventure Game v0.0.1.\n");
+  printf("The objective is to defeat the monster and steal the treasure. Good luck!\n");
+  struct Cell cells[MAX_CELLS];
+  struct Object objects[MAX_OBJECTS];
+  initializeCells(cells);
+  initializeObjects(objects);
+  char *name = promptString("What is your name?");
   struct Cell playerCell = cells[DEFAULT_CELL];
-  struct Object* objects = initializeObjects(cells);
-  int foundObjects[AMOUNT_OF_OBJECTS];
-  struct Player player = {name, DEFAULT_ENERGY, &playerCell, -1, 0};
-  struct Monster monster = {1000, &cells[AMOUNT_OF_CELLS - 1]};
+  int foundObjects[MAX_OBJECTS];
+  struct Player player = {name, DEFAULT_ENERGY, &playerCell, NONE, 0};
+  struct Monster monster = {MONSTER_ENERGY, &cells[MONSTER_INITIAL_CELL]};
 
   int gameOver = 0;
+  int monsterDead = 0;
+  printf("> %s\n", playerCell.description);
   while (!gameOver) {
-    moveMonster(&monster, cells);
-    printf("You are at %s and have %d energy. You did not meet the monster. The monster is at %s.\n",
-      player.cell->description, player.energy, monster.cell->description);
-    
+    if (monsterDead && player.carriesTreasure) {
+      if (player.cell->isDefault) {
+        gameOver = 1;
+        printf("You escaped!\n");
+        break;
+      }
+
+      printf("!!! You are now ready to leave to complete your mission.\n");
+    }
+
+    if (!monsterDead) moveMonster(&monster, cells);
+    printf("You have %d energy.\n", player.energy);
+
     int inputInvalid = 0;
     do {
       inputInvalid = 0;
-      char* possibleMoves = malloc(100);
+      char *possibleMoves = malloc(100);
       if (player.cell->north != -1) {
-        strcat(possibleMoves, "n");
+        strcat(possibleMoves, "(n)orth,");
       }
       if (player.cell->south != -1) {
-        strcat(possibleMoves, "s");
+        strcat(possibleMoves, "(s)outh,");
       }
       if (player.cell->east != -1) {
-        strcat(possibleMoves, "e");
+        strcat(possibleMoves, "(e)ast,");
       }
       if (player.cell->west != -1) {
-        strcat(possibleMoves, "w");
+        strcat(possibleMoves, "(w)est,");
       }
       if (player.cell->up != -1) {
-        strcat(possibleMoves, "u");
+        strcat(possibleMoves, "(u)p,");
       }
       if (player.cell->down != -1) {
-        strcat(possibleMoves, "d");
+        strcat(possibleMoves, "(d)own,");
       }
+      size_t size = strlen(possibleMoves);
+      possibleMoves[size - 1] = '\0';
 
-      char* buffer = malloc(100);
+      char *buffer = malloc(100);
       sprintf(buffer, "Where do you want to go? (%s)", possibleMoves);
-      char* input = promptString(buffer);
+      char *input = promptString(buffer);
 
       if (strcmp(input, "n") == 0 && player.cell->north != -1) {
         player.cell = &cells[player.cell->north];
@@ -229,39 +319,79 @@ int main() {
       }
     } while (inputInvalid);
 
-    if (player.cell->hasObject) {
-      struct Object found = randomizeObject(objects, foundObjects);
-      char buffer[256];
-      sprintf(buffer, "You found %s! It deals %d energy. Do you want to pick it up? (y/n)", 
-        found.name, found.energy);
-      char* input = promptString(buffer);
-      if (strcmp(input, "y") == 0) {
-        printf("You now own the %s!\n", found.name);
-        player.carriedObject = found.id;
-      } else {
-        printf("You dropped the object.\n");
+    if (player.cell->object != NONE) {
+      struct Object found = objects[player.cell->object];
+      if (found.type == OBJECT_T_WEAPON && !foundObjects[found.id]) {
+        char buffer[256];
+        sprintf(buffer, "You found a %s! It deals %d energy. Do you want to pick it up? (y/n)",
+                found.name, found.energy);
+        char *input = promptString(buffer);
+        if (strcmp(input, "y") == 0) {
+          foundObjects[found.id] = 1;
+          printf("You now own this %s!\n", found.name);
+          player.carriedObject = found.id;
+        }
+      } else if (found.type == OBJECT_T_TRAP) {
+        printf("%s\n", found.trapDescription);
+        player.energy -= found.energy;
+        if (player.energy <= 0) {
+          gameOver = 1;
+          printf("You died!\n");
+          break;
+        }
+      } else if (found.type == OBJECT_T_HEALTH && !foundObjects[found.id]) {
+        printf("You found a %s! Your energy increased by %d.\n", found.name, found.energy);
+        player.energy += found.energy;
+        foundObjects[found.id] = 1;
       }
+    } else if (player.cell->hasTreasure) {
+      printf("You found the treasure!\n");
+      if (monsterDead) {
+        printf("You can escape now.\n");
+      } else {
+        printf("Defeat the monster and escape.\n");
+      }
+
+      player.carriesTreasure = 1;
     }
+
+    printf("> %s\n", player.cell->description);
 
     if (player.cell == monster.cell) {
       printf("You met the monster! It's time to fight!\n");
-      int monsterDead = 0;
       while (!monsterDead) {
-        char* input = promptString("Do you want to attack? (y/n)");
-        if (strcmp(input, "y") == 0) {
+        char *input = promptString("What to do? ((w)eak attack,(s)trong attack,(r)un away)");
+        if (strcmp(input, "w") == 0 || strcmp(input, "s") == 0) {
           int maxDealtEnergy = player.carriedObject ? objects[player.carriedObject].energy : 10;
-          int dealtEnergy = rand() % maxDealtEnergy;
-          monster.energy -= dealtEnergy;
-          printf("You dealt %d energy to the monster! The monster now has %d energy.\n", dealtEnergy, monster.energy);
+          int failAttack = (rand() % 2);
+          int dealtEnergy = (strcmp(input, "w") == 0)
+              ? rand() % (maxDealtEnergy - 10)
+              : rand() % (maxDealtEnergy + 200);
+
+          // Apenas falhar se for "strong attack".
+          if (failAttack && strcmp(input, "s") == 0) {
+            printf("You missed.\n");
+          } else {
+            monster.energy -= dealtEnergy;
+            printf("You dealt %d energy to the monster! The monster now has %d energy.\n", dealtEnergy, monster.energy);
+          }
           if (monster.energy <= 0) {
             monsterDead = 1;
+            monster.cell = NULL;
           } else {
-            dealtEnergy = rand() % 100;
+            failAttack = (rand() % 2);
+            if (failAttack) {
+              printf("The monster missed.\n");
+              continue;
+            }
+
+            dealtEnergy = rand() % 50;
             player.energy -= dealtEnergy;
             printf("The monster dealt %d energy to you! You now have %d energy.\n", dealtEnergy, player.energy);
             if (player.energy <= 0) {
               gameOver = 1;
               printf("You died!\n");
+              break;
             }
           }
         } else {
@@ -272,9 +402,8 @@ int main() {
 
       if (monsterDead) {
         printf("You killed the monster! Congratulations!\n");
-        gameOver = 1;
       } else {
-        printf("The monster's energy is now %d.", monster.energy);
+        printf("The monster's energy is now %d.\n", monster.energy);
       }
     }
   }
