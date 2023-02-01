@@ -129,22 +129,22 @@ void *player_thread(void *ptr) {
     do {
       inputInvalid = 0;
       char *possibleMoves = malloc(100);
-      if (player->cell->north != -1) {
+      if (player->cell->north != NONE) {
         strcat(possibleMoves, "(n)orth,");
       }
-      if (player->cell->south != -1) {
+      if (player->cell->south != NONE) {
         strcat(possibleMoves, "(s)outh,");
       }
-      if (player->cell->east != -1) {
+      if (player->cell->east != NONE) {
         strcat(possibleMoves, "(e)ast,");
       }
-      if (player->cell->west != -1) {
+      if (player->cell->west != NONE) {
         strcat(possibleMoves, "(w)est,");
       }
-      if (player->cell->up != -1) {
+      if (player->cell->up != NONE) {
         strcat(possibleMoves, "(u)p,");
       }
-      if (player->cell->down != -1) {
+      if (player->cell->down != NONE) {
         strcat(possibleMoves, "(d)own,");
       }
       size_t size = strlen(possibleMoves);
